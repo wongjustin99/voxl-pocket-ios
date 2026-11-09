@@ -217,7 +217,7 @@ final class HostPickerViewController: UITableViewController {
 
     private func connect(_ host: Host) {
         if host.cloudflareAccess == true, let url = URL(string: host.url),
-           Hosts.accessCredentials(for: host.url)?.cookieHeader(for: url) == nil {
+           Hosts.accessCredentials(for: host.url)?.requestHeaders(for: url) == nil {
             signIn(host) { [weak self] in self?.connect(host) }
         } else if Hosts.password(for: host.url) == nil {
             askPassword(host) { [weak self] in self?.connect(host) }

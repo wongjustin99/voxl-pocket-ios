@@ -66,8 +66,11 @@ hostname to Voxl's `--allowed-hosts`. Keep your existing Cloudflare Access polic
 The app uses Cloudflare's encrypted CLI token-transfer flow to retrieve the application
 Access token without reading Safari's cookies. Each attempt uses a new ephemeral NaCl
 key pair. Only the application token is saved in the Keychain, scoped to the exact
-hostname and port, until its expiry; the organization token is discarded. No Voxl
-password is sent to the browser. Cancel closes sign-in and stops the transfer request.
+hostname and port, until its expiry; the organization token is discarded. The token
+is sent in `CF-Access-Token`, not a browser cookie. Before saving it, the app checks
+that the host does not redirect it back to Access or reject it with HTTP 403/5xx.
+A rejected token shows an error instead of reconnecting. No Voxl password is sent to
+the browser or this check. Cancel closes sign-in and stops the transfer request.
 Safari manages the identity-provider session; deleting a host or turning off Access
 in the app does not sign you out of the browser. Policies that require a browser-only
 binding cookie may not support this CLI flow.

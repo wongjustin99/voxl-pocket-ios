@@ -58,6 +58,7 @@ final class AccessLoginViewController: UIViewController, SFSafariViewControllerD
                 self.browser = browser
                 await self.open(browser)
                 let credentials = try await client.credentials(for: url, audience: audience, transfer: transfer)
+                try await client.verify(credentials, for: url)
                 try Task.checkCancellation()
                 guard !self.finished else { return }
                 self.finished = true

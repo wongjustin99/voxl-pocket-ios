@@ -60,7 +60,36 @@ final class AccessLoginClientTests: XCTestCase {
         }
         let host = URL(string: "wss://desktop.example.com/ws")!
         let credentials = try await client().credentials(for: host, audience: "app-aud", transfer: transfer)
-        XCTAssertEqual(credentials.cookieHeader(for: host), "CF_Authorization=\(token)")
+        XCTAssertEqual(credentials.requestHeaders(for: host), ["CF-Access-Token": token])
+        XCTAssertNil(credentials.cookieHeader(for: host))
+    }
+
+    func testChecksReturnedTokenAgainstHostAndReportsAccessRejection() async throws {
+        let host = URL(string: "wss://desktop.example.com/ws")!
+        let credentials = try XCTUnwrap(AccessCredentials(token: "header.payload.signature", expires: Date().addingTimeInterval(60), for: host))
+        Stub.reply = { request in
+            XCTAssertEqual(request.httpMethod, "HEAD")
+            XCTAssertEqual(request.url?.absoluteString, "https://desktop.example.com/ws")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "CF-Access-Token"), "header.payload.signature")
+            XCTAssertNil(request.value(forHTTPHeaderField: "Cookie"))
+            XCTAssertNil(request.value(forHTTPHeaderField: "Authorization"))
+            return (401, ["WWW-Authenticate": "Basic realm=\"voxl\""], Data())
+        }
+        try await client().verify(credentials, for: host)
+        let rejections: [(Int, [String: String])] = [
+            (403, [:]),
+            (302, ["Location": "https://team.cloudflareaccess.com/cdn-cgi/access/login/desktop.example.com"]),
+            (500, [:]),
+        ]
+        for (expectedStatus, headers) in rejections {
+            Stub.reply = { _ in (expectedStatus, headers, Data()) }
+            do {
+                try await client().verify(credentials, for: host)
+                XCTFail("Rejected Access token was accepted")
+            } catch AccessLoginError.accessRejected(let status) {
+                XCTAssertEqual(status, expectedStatus)
+            }
+        }
     }
 
     func testCancellationStopsTokenPolling() async throws {

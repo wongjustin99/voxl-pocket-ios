@@ -193,11 +193,11 @@ final class Session: NSObject, URLSessionWebSocketDelegate {
         var req = URLRequest(url: url)
         req.setValue("Bearer \(pw)", forHTTPHeaderField: "Authorization")
         if host.cloudflareAccess == true {
-            guard let cookie = Hosts.accessCredentials(for: host.url)?.cookieHeader(for: url) else {
+            guard let headers = Hosts.accessCredentials(for: host.url)?.requestHeaders(for: url) else {
                 requireAccessSignIn()
                 return
             }
-            req.setValue(cookie, forHTTPHeaderField: "Cookie")
+            for (name, value) in headers { req.setValue(value, forHTTPHeaderField: name) }
         }
         accessSignInRequired = false
         let t = urlSession.webSocketTask(with: req)

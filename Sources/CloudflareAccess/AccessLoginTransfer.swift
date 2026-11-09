@@ -3,12 +3,14 @@ import Sodium
 
 enum AccessLoginError: LocalizedError {
     case applicationNotFound, invalidTransfer, timedOut
+    case accessRejected(Int)
 
     var errorDescription: String? {
         switch self {
         case .applicationNotFound: return "Could not find a Cloudflare Access application at this host."
         case .invalidTransfer: return "Cloudflare returned an invalid sign-in token. Please try again."
         case .timedOut: return "Sign-in timed out. Please try again."
+        case .accessRejected(let status): return "The host rejected the returned Access token (HTTP \(status)). Check the Cloudflare Access policy, including whether it requires browser-bound cookies."
         }
     }
 }
@@ -47,10 +49,7 @@ struct AccessLoginTransfer {
               let payload = Self.decodeBase64URL(String(parts[1])),
               let claims = try? JSONDecoder().decode(Claims.self, from: payload),
               claims.aud.contains(audience), claims.exp > now.timeIntervalSince1970,
-              let host = url.host,
-              let cookie = HTTPCookie(properties: [.name: "CF_Authorization", .value: token, .domain: host,
-                                                  .path: "/", .secure: "TRUE", .expires: Date(timeIntervalSince1970: claims.exp)]),
-              let credentials = AccessCredentials(cookies: [cookie], for: url, now: now) else {
+              let credentials = AccessCredentials(token: token, expires: Date(timeIntervalSince1970: claims.exp), for: url, now: now) else {
             throw AccessLoginError.invalidTransfer
         }
         return credentials

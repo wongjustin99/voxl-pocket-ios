@@ -39,6 +39,22 @@ final class AccessLoginClient {
         throw AccessLoginError.applicationNotFound
     }
 
+    func verify(_ credentials: AccessCredentials, for host: URL) async throws {
+        guard let url = AccessCredentials.loginURL(for: host),
+              let headers = credentials.requestHeaders(for: host) else { throw AccessLoginError.invalidTransfer }
+        var request = URLRequest(url: url)
+        request.httpMethod = "HEAD"
+        request.timeoutInterval = 15
+        request.allHTTPHeaderFields = headers
+        let (_, response) = try await session.data(for: request)
+        guard let response = response as? HTTPURLResponse else { throw AccessLoginError.invalidTransfer }
+        let accessRedirect = HandshakeFailure.classify(status: response.statusCode, challenge: nil, accessEnabled: false,
+                                                      location: response.value(forHTTPHeaderField: "Location")) == .access
+        if accessRedirect || response.statusCode == 403 || response.statusCode >= 500 {
+            throw AccessLoginError.accessRejected(response.statusCode)
+        }
+    }
+
     func credentials(for host: URL, audience: String, transfer: AccessLoginTransfer) async throws -> AccessCredentials {
         let url = URL(string: "https://login.cloudflareaccess.org/transfer/")!.appendingPathComponent(transfer.publicKey)
         for _ in 0..<10 {

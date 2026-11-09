@@ -5,6 +5,19 @@ import FoundationNetworking
 #endif
 
 final class AccessCredentialsTests: XCTestCase {
+    func testCLITokenUsesAccessHeaderNotBrowserCookie() throws {
+        let url = URL(string: "wss://desktop.example.com:8443/ws")!
+        let now = Date()
+        let credentials = try XCTUnwrap(AccessCredentials(token: "header.payload.signature", expires: now.addingTimeInterval(60), for: url, now: now))
+        let restored = try JSONDecoder().decode(AccessCredentials.self, from: JSONEncoder().encode(credentials))
+        XCTAssertEqual(restored.requestHeaders(for: url, now: now), ["CF-Access-Token": "header.payload.signature"])
+        XCTAssertNil(restored.cookieHeader(for: url, now: now))
+        XCTAssertNil(restored.requestHeaders(for: url, now: now.addingTimeInterval(61)))
+        XCTAssertNil(restored.requestHeaders(for: URL(string: "wss://other.example.com:8443/ws")!, now: now))
+        XCTAssertNil(restored.requestHeaders(for: URL(string: "wss://desktop.example.com/ws")!, now: now))
+        XCTAssertNil(restored.requestHeaders(for: URL(string: "ws://desktop.example.com:8443/ws")!, now: now))
+    }
+
     func testOnlyApplicationCookiesReachTheWebSocket() throws {
         let url = URL(string: "wss://desktop.example.com/ws")!
         let cookies = [
@@ -15,6 +28,7 @@ final class AccessCredentialsTests: XCTestCase {
         ]
         let credentials = try XCTUnwrap(AccessCredentials(cookies: cookies, for: url))
         let header = try XCTUnwrap(credentials.cookieHeader(for: url))
+        XCTAssertEqual(credentials.requestHeaders(for: url), ["Cookie": header])
         XCTAssertTrue(header.contains("CF_Authorization=app"))
         XCTAssertTrue(header.contains("CF_Binding=binding"))
         XCTAssertFalse(header.contains("team"))

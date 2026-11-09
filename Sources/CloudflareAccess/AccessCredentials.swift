@@ -33,14 +33,40 @@ struct AccessCredentials: Codable {
         func isValid(at now: Date) -> Bool { expires.map { $0 > now } ?? true }
     }
 
+    private struct Token: Codable {
+        let value: String
+        let expires: Date
+    }
+
     private let host: String
     private let port: Int
     private let cookies: [Cookie]
+    private let token: Token?
+
+    init?(token: String, expires: Date, for url: URL, now: Date = Date()) {
+        let allowed = CharacterSet(charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_.")
+        guard url.scheme == "wss", let host = url.host?.lowercased(), expires > now,
+              !token.isEmpty, token.unicodeScalars.allSatisfy(allowed.contains) else { return nil }
+        self.host = host
+        port = url.port ?? 443
+        cookies = []
+        self.token = Token(value: token, expires: expires)
+    }
+
+    func requestHeaders(for url: URL, now: Date = Date()) -> [String: String]? {
+        if let token {
+            guard url.scheme == "wss", url.host?.lowercased() == host,
+                  (url.port ?? 443) == port, token.expires > now else { return nil }
+            return ["CF-Access-Token": token.value]
+        }
+        return cookieHeader(for: url, now: now).map { ["Cookie": $0] }
+    }
 
     init?(cookies: [HTTPCookie], for url: URL, now: Date = Date()) {
         guard url.scheme == "wss", let host = url.host?.lowercased() else { return nil }
         self.host = host
         port = url.port ?? 443
+        token = nil
         self.cookies = cookies.filter {
             ["CF_Authorization", "CF_Binding"].contains($0.name) &&
             $0.domain.lowercased().trimmingCharacters(in: CharacterSet(charactersIn: ".")) == host && $0.isSecure

@@ -19,9 +19,10 @@ final class AccessLoginTransferTests: XCTestCase {
         let senderKey = Data(sender.publicKey).base64EncodedString().replacingOccurrences(of: "+", with: "-").replacingOccurrences(of: "/", with: "_")
         let host = URL(string: "wss://desktop.example.com/ws")!
         let credentials = try transfer.credentials(from: data, senderPublicKey: senderKey, for: host, audience: "app-aud", now: now)
-        XCTAssertEqual(credentials.cookieHeader(for: host, now: now), "CF_Authorization=\(token)")
-        XCTAssertNil(credentials.cookieHeader(for: host, now: Date(timeIntervalSince1970: TimeInterval(expiry + 1))))
-        XCTAssertNil(credentials.cookieHeader(for: URL(string: "wss://other.example.com/ws")!))
+        XCTAssertEqual(credentials.requestHeaders(for: host, now: now), ["CF-Access-Token": token])
+        XCTAssertNil(credentials.cookieHeader(for: host, now: now))
+        XCTAssertNil(credentials.requestHeaders(for: host, now: Date(timeIntervalSince1970: TimeInterval(expiry + 1))))
+        XCTAssertNil(credentials.requestHeaders(for: URL(string: "wss://other.example.com/ws")!))
         XCTAssertThrowsError(try transfer.credentials(from: data, senderPublicKey: senderKey, for: host, audience: "wrong-aud"))
         XCTAssertThrowsError(try transfer.credentials(from: data, senderPublicKey: senderKey, for: host, audience: "app-aud", now: Date(timeIntervalSince1970: TimeInterval(expiry + 1))))
         var tampered = encrypted

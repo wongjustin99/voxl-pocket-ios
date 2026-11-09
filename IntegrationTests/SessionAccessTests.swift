@@ -6,6 +6,24 @@ final class SessionAccessTests: XCTestCase, SessionDelegate {
     private var signIn: XCTestExpectation?
 
     @MainActor
+    func testStoredCLITokenStartsConnectionWithoutRequestingSignInAgain() throws {
+        let url = "wss://127.0.0.1:1/ws?access-test=\(UUID().uuidString)"
+        let host = Host(name: "CLI token test", url: url, cloudflareAccess: true)
+        let credentials = try XCTUnwrap(AccessCredentials(token: "header.payload.signature", expires: Date().addingTimeInterval(60), for: URL(string: url)!))
+        Hosts.setPassword("integration-test-not-a-real-password", for: url)
+        Hosts.setAccessCredentials(credentials, for: url)
+        let session = Session(host: host)
+        defer {
+            session.close()
+            Hosts.setPassword(nil, for: url)
+            Hosts.setAccessCredentials(nil, for: url)
+        }
+        session.start()
+        XCTAssertFalse(session.accessSignInRequired)
+        XCTAssertEqual(Hosts.accessCredentials(for: url)?.requestHeaders(for: URL(string: url)!), ["CF-Access-Token": "header.payload.signature"])
+    }
+
+    @MainActor
     func testLiveCloudflareRedirectRequestsSignInAndPreservesPassword() async {
         let url = "wss://voxl.mailwong.com/ws?access-test=\(UUID().uuidString)"
         let host = Host(name: "Access integration test", url: url, input: InputPreferences(reverseScroll: true, showCircle: true))
