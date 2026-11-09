@@ -59,15 +59,18 @@ hostname to Voxl's `--allowed-hosts`. Keep your existing Cloudflare Access polic
    not your GitHub password.
 2. Tap the saved host. A Cloudflare Access login redirect automatically opens sign-in.
    You can also swipe left, tap **Access**, then **Sign In** to log in manually.
-3. Complete Cloudflare's GitHub login in the in-app browser. The browser closes and
-   the native desktop connects once the application cookies are available.
+3. Complete Cloudflare's GitHub login in Apple's Safari sheet. Passkeys and enabled
+   password-manager extensions are available. The sheet closes and the native desktop
+   connects automatically after sign-in.
 
-Access cookies are saved in the Keychain, scoped to that exact hostname and port.
-The optional `CF_Binding` cookie is included too. The login browser uses temporary
-storage, separate from Safari, so you may need to enter your GitHub credentials again.
-Only HTTPS login pages are allowed; no Voxl password is sent to the login browser.
-If a passkey or external-app login cannot complete inside the browser, use GitHub's
-password and verification-code options instead.
+The app uses Cloudflare's encrypted CLI token-transfer flow to retrieve the application
+Access token without reading Safari's cookies. Each attempt uses a new ephemeral NaCl
+key pair. Only the application token is saved in the Keychain, scoped to the exact
+hostname and port, until its expiry; the organization token is discarded. No Voxl
+password is sent to the browser. Cancel closes sign-in and stops the transfer request.
+Safari manages the identity-provider session; deleting a host or turning off Access
+in the app does not sign you out of the browser. Policies that require a browser-only
+binding cookie may not support this CLI flow.
 
 When Access expires or rejects a connection, tap the desktop's sign-in message to
 log in again. A 403 does not erase the saved Voxl password. To stop using Access for a
@@ -80,11 +83,12 @@ unit tests do not validate your Access policy or identity-provider configuration
 ## Privacy
 
 Voxl Pocket collects no data and has no analytics, ads or accounts. The servers you add
-are stored on your device, and their passwords in the iOS Keychain. The app talks only to
+are stored on your device, and their passwords in the iOS Keychain. The app talks to
 the servers you add: it sends your input, and your clipboard when it changes, and receives
 the screen and the server's clipboard. When you enable Cloudflare Access, the sign-in
-browser also contacts Cloudflare and your chosen identity provider (such as GitHub).
-The app saves the application's Access cookies in the Keychain, not your GitHub password.
+sheet also contacts Cloudflare and your chosen identity provider (such as GitHub).
+The app retrieves the encrypted application token from `login.cloudflareaccess.org`
+and saves it in the Keychain, not your GitHub password or organization token.
 Nothing is sent to the app's developer.
 
 ## Build
@@ -102,7 +106,8 @@ under **Signing & Capabilities**, select your connected device, and run. Change 
 identifier if your team cannot register this one. Set the team in `project.yml` if you
 want it retained when regenerating the project.
 
-Run the cookie-scoping and handshake-error tests with `swift test`.
+Run the cookie-scoping, handshake-error and encrypted-transfer tests with `swift test`.
+The build resolves the pinned Swift Sodium dependency for Cloudflare's NaCl protocol.
 The Xcode scheme also includes a live integration test against `voxl.mailwong.com`:
 run **Product > Test** on a simulator. It checks the real WebSocket redirect path,
 Access discovery and password preservation without completing GitHub login.
