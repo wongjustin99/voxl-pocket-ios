@@ -438,11 +438,11 @@ final class RemoteViewController: UIViewController, SessionDelegate, UIGestureRe
     }
 
     private func setupPointerCircle() {
-        pointerCircle.bounds = CGRect(x: 0, y: 0, width: 64, height: 64)
-        pointerCircle.layer.cornerRadius = 32
-        pointerCircle.layer.borderWidth = 2
-        pointerCircle.layer.borderColor = UIColor.white.cgColor
-        pointerCircle.backgroundColor = UIColor(white: 0, alpha: 0.35)
+        pointerCircle.bounds = CGRect(x: 0, y: 0, width: PrecisionCircle.size, height: PrecisionCircle.size)
+        pointerCircle.layer.cornerRadius = PrecisionCircle.size / 2
+        pointerCircle.layer.borderWidth = 1.5
+        pointerCircle.layer.borderColor = UIColor(white: 1, alpha: 0.85).cgColor
+        pointerCircle.backgroundColor = .clear
         pointerCircle.isAccessibilityElement = true
         pointerCircle.accessibilityLabel = "Precision mouse circle"
         pointerCircle.accessibilityTraits = .button
@@ -463,8 +463,7 @@ final class RemoteViewController: UIViewController, SessionDelegate, UIGestureRe
         let safe = view.safeAreaLayoutGuide.layoutFrame.insetBy(dx: 36, dy: 36)
         let point = W > 0 ? view.convert(cursor, from: desk) : CGPoint(x: view.bounds.midX, y: view.bounds.midY)
         let bottom = max(safe.minY, min(safe.maxY, view.bounds.height - covered - 36))
-        pointerCircle.center = CGPoint(x: min(max(point.x, safe.minX), safe.maxX),
-                                       y: min(max(point.y, safe.minY), bottom))
+        pointerCircle.center = PrecisionCircle.center(for: point, in: safe, bottom: bottom)
     }
 
     private func handlePointer(_ actions: [PointerAction], precision: Bool = false) {

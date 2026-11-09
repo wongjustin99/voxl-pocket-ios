@@ -7,7 +7,7 @@ struct TrackpadMotion {
     mutating func reset(at time: TimeInterval? = nil) { lastTime = time }
 
     mutating func move(_ delta: CGPoint, at time: TimeInterval, precision: Bool = false) -> CGPoint {
-        if precision { return CGPoint(x: delta.x * 0.525, y: delta.y * 0.525) }
+        if precision { return delta }
         let elapsed = lastTime.map { time - $0 }
         lastTime = time
         guard let elapsed, elapsed > 0 else { return delta }

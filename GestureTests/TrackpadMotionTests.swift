@@ -33,12 +33,12 @@ final class TrackpadMotionTests: XCTestCase {
         XCTAssertEqual(motion.move(delta, at: 0.5), delta)
     }
 
-    func testPrecisionCircleKeepsItsFixedGainAtAnySpeed() {
+    func testPrecisionCircleMovesOneToOneAtAnySpeed() {
         let delta = CGPoint(x: 10, y: -20)
         var motion = TrackpadMotion()
         motion.reset(at: 0)
-        XCTAssertEqual(motion.move(delta, at: 0.01, precision: true), CGPoint(x: 5.25, y: -10.5))
-        XCTAssertEqual(motion.move(delta, at: 1, precision: true), CGPoint(x: 5.25, y: -10.5))
+        XCTAssertEqual(motion.move(delta, at: 0.01, precision: true), delta)
+        XCTAssertEqual(motion.move(delta, at: 1, precision: true), delta)
     }
 
     func testModerateMovementsUseAGentleGain() {
