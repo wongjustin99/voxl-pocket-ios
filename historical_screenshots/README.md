@@ -1,5 +1,7 @@
 # Visual history
 
+- `2026-11-09-07/`: saved input settings, precision mouse circle and View Only on the iPhone 13 Pro simulator, from the input-profiles commit containing this entry. Uses the loopback input fixture with no video or private desktop content. The existing `2026-11-09-06/` toolbar screenshots are the visual baseline. Wire replays cover one-/two-finger input, precision scaling, reverse scrolling and View Only suppression; three-finger tap/drag need a physical check. Device build installed on Gattleskit; phone was locked at launch.
+
 - `2026-11-09-05/`: toolbar safe-area baseline at `b0954ff`, captured on an iPhone 13 Pro simulator in portrait and landscape-left. An intentionally unreachable localhost host keeps private desktop content out of the screenshots.
 - `2026-11-09-06/`: toolbar anchored inside the safe area in portrait and both landscape orientations, from the safe-area fix containing this entry. Same simulator and host as the baseline. Layout regression failed before the fix and passes afterward. Signed device build succeeds; update installed and launched on Gattleskit after it reconnected.
 

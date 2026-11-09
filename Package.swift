@@ -6,6 +6,8 @@ let package = Package(
     products: [.library(name: "AccessCredentials", targets: ["AccessCredentials"])],
     targets: [
         .target(name: "AccessCredentials", path: "Sources/CloudflareAccess"),
+        .target(name: "PointerInput", path: "Sources/PointerInput"),
+        .testTarget(name: "PointerInputTests", dependencies: ["PointerInput"], path: "GestureTests"),
         .testTarget(name: "AccessCredentialsTests", dependencies: ["AccessCredentials"], path: "Tests"),
     ]
 )
