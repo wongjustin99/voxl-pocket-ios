@@ -6,7 +6,9 @@ desktop server.
 ## Features
 
 - H.264 video decoded in hardware (AVSampleBufferDisplayLayer), one layer per stripe
-- Trackpad and touch input, pinch to zoom, two-finger scroll, three-finger drag
+- Trackpad, touch and view-only modes, with settings saved per computer
+- Tap-and-drag, three-finger drag, right and middle mouse gestures, precision mouse circle
+- Pinch to zoom, two-finger scroll and three-finger tap to toggle the keyboard
 - Hardware keyboards and mice, plus the soft keyboard with a key bar for Esc, Tab,
   sticky Shift/Cmd/Ctrl/Opt, ⌘Space, ⌘Tab and arrows
 - Keeps the host at its own resolution by default; can resize it to fit the iPad
@@ -21,9 +23,30 @@ desktop server.
 Tap **+** and enter the server's address, for example `wss://my-mac.example.com:6901/ws`,
 and its password. The password is stored in the iOS Keychain.
 
-In trackpad mode, move the pointer onto an item, then drag with three fingers.
-Lift your fingers to drop it. This does not need the one-finger hold delay;
-one-finger press-and-hold dragging still works.
+Tap the input icon at the top right to choose **Trackpad mode**, **Touch mode**, or
+**View only**. The same menu controls the precision mouse circle and scroll direction.
+These settings are saved separately for each computer.
+
+### Gestures
+
+| Action | Gesture |
+| --- | --- |
+| Left click / double click | Tap / double tap |
+| Left drag without a hold delay | Tap, touch again, then move without lifting |
+| Left drag in trackpad mode | Drag with three fingers, or hold one finger then move |
+| Right click | Tap with two fingers; in touch mode, a single hold also right-clicks |
+| Right drag | Tap, touch again and hold until the ring appears, then move |
+| Middle click or drag | Tap twice, touch again and hold until the ring appears; release to click or move to drag |
+| Show or hide the keyboard | Tap with three fingers |
+| Scroll / zoom | Move two fingers / pinch |
+
+Trackpad gestures act at the pointer. Touch mode acts at your finger. Lift to drop a
+dragged item. Holds take about 0.4 seconds. The optional precision circle moves the
+pointer more slowly and supports the same one-finger click and drag gestures.
+
+**View only** blocks mouse, keyboard, clipboard sync and desktop resizing from this
+client. You can still zoom and pan locally with two fingers. This is a local input
+lock, not a replacement for server-side access controls.
 
 ### Cloudflare Tunnel with Access (GitHub login)
 
@@ -82,6 +105,18 @@ The Xcode scheme also includes a live integration test against `voxl.mailwong.co
 run **Product > Test** on a simulator. It checks the real WebSocket redirect path,
 Access discovery and password preservation without completing GitHub login.
 Simulator tests need normal ad-hoc signing enabled for Keychain access.
+
+For wire-level gesture checks without controlling a desktop, run the loopback fixture:
+
+```sh
+uv run scripts/input-replay-server.py --output /tmp/voxl-input-replay.jsonl
+```
+
+Add `ws://localhost:6922/ws` in the simulator with a dummy password. The fixture sends
+screen dimensions but no video, records pointer/button/scroll events, and redacts
+keyboard and clipboard text. It never captures a screen or injects input. Automated
+checks cover one- and two-finger input; the device driver cannot synthesize three
+fingers, so three-finger tap/drag still need a physical-device check.
 
 ## License
 

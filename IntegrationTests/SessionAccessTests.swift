@@ -8,7 +8,7 @@ final class SessionAccessTests: XCTestCase, SessionDelegate {
     @MainActor
     func testLiveCloudflareRedirectRequestsSignInAndPreservesPassword() async {
         let url = "wss://voxl.mailwong.com/ws?access-test=\(UUID().uuidString)"
-        let host = Host(name: "Access integration test", url: url)
+        let host = Host(name: "Access integration test", url: url, input: InputPreferences(reverseScroll: true, showCircle: true))
         let previousHosts = Hosts.all
         Hosts.all = [host]
         Hosts.setPassword("integration-test-not-a-real-password", for: url)
@@ -28,6 +28,7 @@ final class SessionAccessTests: XCTestCase, SessionDelegate {
         XCTAssertTrue(session.accessSignInRequired)
         XCTAssertEqual(Hosts.password(for: url), "integration-test-not-a-real-password")
         XCTAssertEqual(Hosts.all.first?.cloudflareAccess, true)
+        XCTAssertEqual(Hosts.all.first?.input, host.input)
     }
 
     func sessionAccessRequired() { signIn?.fulfill() }

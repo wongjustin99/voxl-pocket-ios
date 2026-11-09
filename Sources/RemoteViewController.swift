@@ -12,6 +12,10 @@ final class RemoteViewController: UIViewController, SessionDelegate, UIGestureRe
     private let modeButton = UIButton(type: .system)
     private let displayButton = UIButton(type: .system)
     private let densityButton = UIButton(type: .system)
+    private let pointerCircle = UIView()
+    private let oneFinger = OneFingerGestureRecognizer()
+    private let circleFinger = OneFingerGestureRecognizer()
+    private var preferences: InputPreferences
 
     private var W: CGFloat = 0, H: CGFloat = 0
     private var resizeScale: Double?
@@ -30,7 +34,7 @@ final class RemoteViewController: UIViewController, SessionDelegate, UIGestureRe
     private var cursor = CGPoint.zero      // desktop pixels
     private var hotspot = CGPoint.zero
     private var lastMove = ""
-    private var trackpad = true
+    private var trackpad: Bool { preferences.mode == .trackpad }
     private var pinching = false
     private var scrollAcc = CGPoint.zero
     private var heldKeys: [Int: Int] = [:] // HID usage -> keysym sent on press
@@ -47,6 +51,8 @@ final class RemoteViewController: UIViewController, SessionDelegate, UIGestureRe
 
     init(host: Host) {
         session = Session(host: host)
+        preferences = host.input ?? InputPreferences()
+        session.inputPreferences = preferences
         super.init(nibName: nil, bundle: nil)
     }
     required init?(coder: NSCoder) { fatalError() }
@@ -79,7 +85,7 @@ final class RemoteViewController: UIViewController, SessionDelegate, UIGestureRe
         backButton.accessibilityLabel = "Hosts"
         let kbButton = chromeButton("keyboard", #selector(toggleKeyboard))
         updateModeButton()
-        modeButton.addTarget(self, action: #selector(toggleMode), for: .touchUpInside)
+        modeButton.addTarget(self, action: #selector(showInputSettings), for: .touchUpInside)
         styleChrome(modeButton)
         displayButton.setImage(UIImage(systemName: "display.2"), for: .normal)
         displayButton.accessibilityLabel = "Display"
@@ -108,6 +114,8 @@ final class RemoteViewController: UIViewController, SessionDelegate, UIGestureRe
         ])
 
         setupGestures()
+        setupPointerCircle()
+        applyInputPreferences()
         view.addInteraction(UIPointerInteraction(delegate: self))
 
         let nc = NotificationCenter.default
@@ -203,6 +211,7 @@ final class RemoteViewController: UIViewController, SessionDelegate, UIGestureRe
         covered = kb
         laidOutSize = view.bounds.size
         layoutDesk()
+        updatePointerCircle()
         if changed { followCursor() }
         scheduleResize()
     }
@@ -226,13 +235,53 @@ final class RemoteViewController: UIViewController, SessionDelegate, UIGestureRe
     }
 
     private func updateModeButton() {
-        modeButton.setImage(UIImage(systemName: trackpad ? "rectangle.and.hand.point.up.left" : "hand.point.up.left"), for: .normal)
-        modeButton.accessibilityLabel = trackpad ? "Trackpad mode" : "Touch mode"
+        modeButton.setImage(UIImage(systemName: preferences.mode.symbol), for: .normal)
+        modeButton.accessibilityLabel = preferences.mode.title
     }
 
-    @objc private func toggleMode() { trackpad.toggle(); updateModeButton() }
+    @objc private func showInputSettings() {
+        releaseAll()
+        let sheet = UIAlertController(title: "Input", message: nil, preferredStyle: .actionSheet)
+        for mode in InputMode.allCases {
+            let action = UIAlertAction(title: mode.title, style: .default) { [weak self] _ in
+                self?.changeInput { $0.mode = mode }
+            }
+            action.isEnabled = mode != preferences.mode
+            sheet.addAction(action)
+        }
+        sheet.addAction(UIAlertAction(title: preferences.showCircle ? "Hide precision mouse circle" : "Show precision mouse circle", style: .default) { [weak self] _ in
+            self?.changeInput { $0.showCircle.toggle() }
+        })
+        sheet.addAction(UIAlertAction(title: preferences.reverseScroll ? "Use normal scroll direction" : "Reverse scroll direction", style: .default) { [weak self] _ in
+            self?.changeInput { $0.reverseScroll.toggle() }
+        })
+        sheet.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        sheet.popoverPresentationController?.sourceView = modeButton
+        sheet.popoverPresentationController?.sourceRect = modeButton.bounds
+        present(sheet, animated: true)
+    }
+
+    private func changeInput(_ change: (inout InputPreferences) -> Void) {
+        releaseAll()
+        change(&preferences)
+        Hosts.setInput(preferences, for: session.host.url)
+        applyInputPreferences()
+    }
+
+    private func applyInputPreferences() {
+        session.inputPreferences = preferences
+        oneFinger.mode = preferences.mode
+        circleFinger.mode = preferences.mode == .viewOnly ? .viewOnly : .trackpad
+        cursorLayer.isHidden = preferences.mode == .viewOnly
+        densityButton.isEnabled = preferences.mode != .viewOnly
+        displayButton.isEnabled = preferences.mode != .viewOnly
+        if preferences.mode == .viewOnly { keyInput.resignFirstResponder() }
+        updateModeButton()
+        updatePointerCircle()
+    }
 
     @objc private func toggleKeyboard() {
+        guard preferences.mode != .viewOnly else { return }
         if keyInput.isFirstResponder { keyInput.resignFirstResponder(); becomeFirstResponder() }
         else { keyInput.becomeFirstResponder() }
         view.setNeedsLayout() // covered depends on which responder is first
@@ -317,6 +366,7 @@ final class RemoteViewController: UIViewController, SessionDelegate, UIGestureRe
         let n = nativeScale, half = CGSize(width: W * s / 2, height: H * s / 2)
         desk.center = CGPoint(x: ((view.bounds.midX + offset.x - half.width) * n).rounded() / n + half.width,
                               y: ((view.bounds.midY + offset.y - half.height) * n).rounded() / n + half.height)
+        updatePointerCircle()
     }
 
     private func scheduleResize() {
@@ -356,6 +406,7 @@ final class RemoteViewController: UIViewController, SessionDelegate, UIGestureRe
 
     private func placeCursor() {
         cursorLayer.position = CGPoint(x: cursor.x - hotspot.x, y: cursor.y - hotspot.y)
+        updatePointerCircle()
     }
 
     private func toDesk(_ p: CGPoint) -> CGPoint { desk.convert(p, from: view) }
@@ -366,18 +417,83 @@ final class RemoteViewController: UIViewController, SessionDelegate, UIGestureRe
         cursor = CGPoint(x: min(max(p.x, 0), W - 1), y: min(max(p.y, 0), H - 1))
         placeCursor()
         let s = "m,\(Int(cursor.x.rounded())),\(Int(cursor.y.rounded()))"
-        if s != lastMove { lastMove = s; session.send(s) }
+        if s != lastMove, session.send(s) { lastMove = s }
     }
 
-    private func button(_ b: Int, _ down: Bool) { session.send("b,\(b),\(down ? 1 : 0)") }
+    private func button(_ b: Int, _ down: Bool) {
+        if down, W > 0 {
+            let move = "m,\(Int(cursor.x.rounded())),\(Int(cursor.y.rounded()))"
+            if session.send(move) { lastMove = move }
+        }
+        session.send("b,\(b),\(down ? 1 : 0)")
+    }
     private func click(_ b: Int = 1) { button(b, true); button(b, false) }
 
     private func scroll(_ dPt: CGPoint) {
-        scrollAcc.x -= dPt.x * deskPerPt
-        scrollAcc.y -= dPt.y * deskPerPt
+        let delta = preferences.scrollDelta(dPt, scale: deskPerPt)
+        scrollAcc.x += delta.x
+        scrollAcc.y += delta.y
         guard abs(scrollAcc.x) >= 0.5 || abs(scrollAcc.y) >= 0.5 else { return }
         session.send(String(format: "sp,%.1f,%.1f", scrollAcc.x, scrollAcc.y))
         scrollAcc = .zero
+    }
+
+    private func setupPointerCircle() {
+        pointerCircle.bounds = CGRect(x: 0, y: 0, width: 64, height: 64)
+        pointerCircle.layer.cornerRadius = 32
+        pointerCircle.layer.borderWidth = 2
+        pointerCircle.layer.borderColor = UIColor.white.cgColor
+        pointerCircle.backgroundColor = UIColor(white: 0, alpha: 0.35)
+        pointerCircle.isAccessibilityElement = true
+        pointerCircle.accessibilityLabel = "Precision mouse circle"
+        pointerCircle.accessibilityTraits = .button
+        pointerCircle.accessibilityHint = "Slide to move the pointer precisely. Tap to click."
+        view.insertSubview(pointerCircle, aboveSubview: desk)
+        circleFinger.delegate = self
+        circleFinger.coordinateView = view
+        circleFinger.onActions = { [weak self] actions in
+            guard let self else { return }
+            self.handlePointer(actions, precision: true)
+        }
+        pointerCircle.addGestureRecognizer(circleFinger)
+    }
+
+    private func updatePointerCircle() {
+        pointerCircle.isHidden = !preferences.showCircle || preferences.mode == .viewOnly
+        guard !pointerCircle.isHidden else { return }
+        let safe = view.safeAreaLayoutGuide.layoutFrame.insetBy(dx: 36, dy: 36)
+        let point = W > 0 ? view.convert(cursor, from: desk) : CGPoint(x: view.bounds.midX, y: view.bounds.midY)
+        let bottom = max(safe.minY, min(safe.maxY, view.bounds.height - covered - 36))
+        pointerCircle.center = CGPoint(x: min(max(point.x, safe.minX), safe.maxX),
+                                       y: min(max(point.y, safe.minY), bottom))
+    }
+
+    private func handlePointer(_ actions: [PointerAction], precision: Bool = false) {
+        for action in actions {
+            switch action {
+            case .point(let point): move(to: toDesk(point))
+            case .relative(let delta):
+                let scale: CGFloat = precision ? 0.35 : 1
+                relative(CGPoint(x: delta.x * scale, y: delta.y * scale))
+            case .button(let number, let down): button(number, down)
+            case .click(let number): click(number)
+            case .feedback(let point): showHoldFeedback(at: point)
+            }
+        }
+    }
+
+    private func showHoldFeedback(at point: CGPoint) {
+        let ring = UIView(frame: CGRect(x: point.x - 22, y: point.y - 22, width: 44, height: 44))
+        ring.isUserInteractionEnabled = false
+        ring.layer.cornerRadius = 22
+        ring.layer.borderWidth = 2
+        ring.layer.borderColor = UIColor.white.cgColor
+        view.addSubview(ring)
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        UIView.animate(withDuration: 0.3, animations: {
+            ring.transform = CGAffineTransform(scaleX: 1.8, y: 1.8)
+            ring.alpha = 0
+        }, completion: { _ in ring.removeFromSuperview() })
     }
 
     /// Keeps the cursor in sight when zoomed in (trackpad mode) or above the soft keyboard.
@@ -397,11 +513,12 @@ final class RemoteViewController: UIViewController, SessionDelegate, UIGestureRe
 
         let tap2 = UITapGestureRecognizer(target: self, action: #selector(tapped2))
         tap2.numberOfTouchesRequired = 2
-        let tap1 = UITapGestureRecognizer(target: self, action: #selector(tapped1))
-        let long = UILongPressGestureRecognizer(target: self, action: #selector(longPressed))
-        long.minimumPressDuration = 0.4
-        let pan1 = UIPanGestureRecognizer(target: self, action: #selector(panned1))
-        pan1.maximumNumberOfTouches = 1
+        let tap3 = UITapGestureRecognizer(target: self, action: #selector(toggleKeyboard))
+        tap3.numberOfTouchesRequired = 3
+        oneFinger.onActions = { [weak self] actions in
+            guard let self else { return }
+            self.handlePointer(actions)
+        }
         let pan2 = UIPanGestureRecognizer(target: self, action: #selector(panned2))
         pan2.minimumNumberOfTouches = 2
         pan2.maximumNumberOfTouches = 2
@@ -409,7 +526,8 @@ final class RemoteViewController: UIViewController, SessionDelegate, UIGestureRe
         pan3.minimumNumberOfTouches = 3
         pan3.maximumNumberOfTouches = 3
         let pinch = UIPinchGestureRecognizer(target: self, action: #selector(pinched))
-        for g in [tap1, tap2, long, pan1, pan2, pan3, pinch] as [UIGestureRecognizer] {
+        tap3.require(toFail: pan3)
+        for g in [oneFinger, tap2, tap3, pan2, pan3, pinch] as [UIGestureRecognizer] {
             g.allowedTouchTypes = direct
             g.delegate = self
             view.addGestureRecognizer(g)
@@ -424,10 +542,21 @@ final class RemoteViewController: UIViewController, SessionDelegate, UIGestureRe
         view.addGestureRecognizer(UIHoverGestureRecognizer(target: self, action: #selector(hovered)))
     }
 
+    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
+        var hit = touch.view
+        while let target = hit {
+            if target is UIControl || target === status { return false }
+            if target === pointerCircle && gestureRecognizer.view !== pointerCircle { return false }
+            hit = target.superview
+        }
+        return true
+    }
+
     func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
         if let pan = gestureRecognizer as? UIPanGestureRecognizer, pan.minimumNumberOfTouches == 3 {
             return trackpad
         }
+        if gestureRecognizer is OneFingerGestureRecognizer { return preferences.mode != .viewOnly }
         return true
     }
 
@@ -436,57 +565,15 @@ final class RemoteViewController: UIViewController, SessionDelegate, UIGestureRe
         return pair.contains { $0 is UIPinchGestureRecognizer } && pair.contains { ($0 as? UIPanGestureRecognizer)?.minimumNumberOfTouches == 2 }
     }
 
-    @objc private func tapped1(_ g: UITapGestureRecognizer) {
-        if !trackpad { move(to: toDesk(g.location(in: view))) }
-        click()
-    }
-
     @objc private func tapped2(_ g: UITapGestureRecognizer) {
         if !trackpad { move(to: toDesk(g.location(in: view))) }
         click(3)
     }
 
-    @objc private func longPressed(_ g: UILongPressGestureRecognizer) {
-        if trackpad {
-            // Hold, then drag: left-button drag from the cursor.
-            switch g.state {
-            case .began: lastLong = g.location(in: view); button(1, true)
-            case .changed:
-                let p = g.location(in: view)
-                relative(CGPoint(x: p.x - lastLong.x, y: p.y - lastLong.y))
-                lastLong = p
-            case .ended, .cancelled, .failed: button(1, false)
-            default: break
-            }
-        } else if g.state == .began {
-            move(to: toDesk(g.location(in: view)))
-            click(3)
-        }
-    }
-    private var lastLong = CGPoint.zero
-
     private func relative(_ d: CGPoint) {
         let k = trackpadGain * deskPerPt
         move(to: CGPoint(x: cursor.x + d.x * k, y: cursor.y + d.y * k))
         followCursor()
-    }
-
-    @objc private func panned1(_ g: UIPanGestureRecognizer) {
-        if trackpad {
-            relative(g.translation(in: view))
-            g.setTranslation(.zero, in: view)
-            return
-        }
-        switch g.state {
-        case .began:
-            let t = g.translation(in: view), p = g.location(in: view)
-            move(to: toDesk(CGPoint(x: p.x - t.x, y: p.y - t.y)))
-            button(1, true)
-            move(to: toDesk(p))
-        case .changed: move(to: toDesk(g.location(in: view)))
-        case .ended, .cancelled, .failed: button(1, false)
-        default: break
-        }
     }
 
     @objc private func panned3(_ g: UIPanGestureRecognizer) {
@@ -506,7 +593,7 @@ final class RemoteViewController: UIViewController, SessionDelegate, UIGestureRe
     @objc private func panned2(_ g: UIPanGestureRecognizer) {
         let t = g.translation(in: view)
         g.setTranslation(.zero, in: view)
-        if pinching {
+        if pinching || preferences.mode == .viewOnly {
             offset.x += t.x; offset.y += t.y
             layoutDesk()
         } else if g.state == .changed {
@@ -662,6 +749,8 @@ final class RemoteViewController: UIViewController, SessionDelegate, UIGestureRe
     }
 
     private func releaseAll() {
+        oneFinger.cancelInput()
+        circleFinger.cancelInput()
         session.send("r")
         heldKeys.removeAll()
         pointerButtons.removeAll()

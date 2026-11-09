@@ -15,9 +15,30 @@ final class RemoteGestureTests: XCTestCase {
         let scroll = try XCTUnwrap(pans.first { $0.minimumNumberOfTouches == 2 })
         XCTAssertEqual(scroll.maximumNumberOfTouches, 2)
         let mode = try XCTUnwrap(descendants(of: remote.view).first { $0.accessibilityLabel == "Trackpad mode" } as? UIButton)
-        mode.sendActions(for: .touchUpInside)
-        XCTAssertEqual(mode.accessibilityLabel, "Touch mode")
-        XCTAssertEqual((remote as UIGestureRecognizerDelegate).gestureRecognizerShouldBegin?(drag), false)
+        XCTAssertTrue(mode.allControlEvents.contains(.touchUpInside))
+        let touch = RemoteViewController(host: Host(name: "Touch", url: "wss://gesture.invalid/touch", input: InputPreferences(mode: .touch)))
+        touch.loadViewIfNeeded()
+        let touchDrag = try XCTUnwrap((touch.view.gestureRecognizers ?? []).compactMap { $0 as? UIPanGestureRecognizer }.first { $0.minimumNumberOfTouches == 3 })
+        XCTAssertEqual((touch as UIGestureRecognizerDelegate).gestureRecognizerShouldBegin?(touchDrag), false)
+    }
+
+    @MainActor
+    func testSavedCircleAndViewOnlyProfilesAreApplied() throws {
+        let host = Host(name: "Circle", url: "wss://gesture.invalid/circle", input: InputPreferences(showCircle: true))
+        let remote = RemoteViewController(host: host)
+        remote.loadViewIfNeeded()
+        let circle = try XCTUnwrap(descendants(of: remote.view).first { $0.accessibilityLabel == "Precision mouse circle" })
+        XCTAssertFalse(circle.isHidden)
+        let circleGesture = try XCTUnwrap(circle.gestureRecognizers?.first as? OneFingerGestureRecognizer)
+        XCTAssertEqual(circleGesture.mode, .trackpad)
+        XCTAssertTrue(circleGesture.coordinateView === remote.view)
+        XCTAssertTrue((remote.view.gestureRecognizers ?? []).contains { ($0 as? UITapGestureRecognizer)?.numberOfTouchesRequired == 3 })
+        let viewer = RemoteViewController(host: Host(name: "Viewer", url: "wss://gesture.invalid/viewer", input: InputPreferences(mode: .viewOnly, showCircle: true)))
+        viewer.loadViewIfNeeded()
+        XCTAssertNotNil(descendants(of: viewer.view).first { $0.accessibilityLabel == "View only" })
+        XCTAssertTrue(try XCTUnwrap(descendants(of: viewer.view).first { $0.accessibilityLabel == "Precision mouse circle" }).isHidden)
+        let finger = try XCTUnwrap(viewer.view.gestureRecognizers?.first { $0 is OneFingerGestureRecognizer })
+        XCTAssertEqual((viewer as UIGestureRecognizerDelegate).gestureRecognizerShouldBegin?(finger), false)
     }
 
     @MainActor

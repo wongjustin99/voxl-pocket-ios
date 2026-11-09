@@ -21,6 +21,7 @@ struct Host: Codable, Equatable {
     var name: String
     var url: String
     var cloudflareAccess: Bool?
+    var input: InputPreferences?
 }
 
 /// Saved hosts. The list lives in UserDefaults, each host's password in the Keychain
@@ -32,6 +33,14 @@ enum Hosts {
             UserDefaults.standard.data(forKey: "hosts").flatMap { try? JSONDecoder().decode([Host].self, from: $0) } ?? []
         }
         set { UserDefaults.standard.set(try? JSONEncoder().encode(newValue), forKey: "hosts") }
+    }
+
+    static func setInput(_ input: InputPreferences, for url: String) {
+        all = all.map { host in
+            var host = host
+            if host.url == url { host.input = input }
+            return host
+        }
     }
 
     static func seedFromEnvironment() {
@@ -255,7 +264,8 @@ final class HostPickerViewController: UITableViewController {
             }
             let name = (f[0].text ?? "").trimmingCharacters(in: .whitespaces)
             let host = Host(name: name.isEmpty ? (URL(string: url)?.host ?? url) : name, url: url,
-                            cloudflareAccess: url.hasPrefix("wss://") ? old?.cloudflareAccess : nil)
+                            cloudflareAccess: url.hasPrefix("wss://") ? old?.cloudflareAccess : nil,
+                            input: old?.input)
             let pw = f[2].text ?? ""
             if let old, old.url != url {
                 if pw.isEmpty { Hosts.setPassword(Hosts.password(for: old.url), for: url) }

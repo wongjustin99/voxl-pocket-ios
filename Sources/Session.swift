@@ -110,6 +110,11 @@ protocol SessionDelegate: AnyObject {
 final class Session: NSObject, URLSessionWebSocketDelegate {
     weak var delegate: SessionDelegate?
     private(set) var host: Host
+    var inputPreferences = InputPreferences() {
+        didSet {
+            if oldValue.mode != .viewOnly && inputPreferences.mode == .viewOnly { send("r") }
+        }
+    }
     private(set) var connected = false
     private(set) var accessSignInRequired = false
     private var task: URLSessionWebSocketTask?
@@ -162,7 +167,7 @@ final class Session: NSObject, URLSessionWebSocketDelegate {
     func sendPasteboard() {
         let pb = UIPasteboard.general
         let gen = pb.changeCount
-        guard connected, let task, gen != pasteSeen else { return }
+        guard inputPreferences.mode != .viewOnly, connected, let task, gen != pasteSeen else { return }
         let msg: URLSessionWebSocketTask.Message
         if pb.hasStrings, let s = pb.string, !s.isEmpty {
             msg = .string("c,\(s)")
@@ -220,7 +225,7 @@ final class Session: NSObject, URLSessionWebSocketDelegate {
     /// Returns whether the message was queued (false while disconnected).
     @discardableResult
     func send(_ s: String) -> Bool {
-        guard connected, let task else { return false }
+        guard inputPreferences.allows(s), connected, let task else { return false }
         task.send(.string(s)) { _ in }
         return true
     }
@@ -245,7 +250,11 @@ final class Session: NSObject, URLSessionWebSocketDelegate {
                         let discovered = self.host.cloudflareAccess != true
                         if discovered {
                             self.host.cloudflareAccess = true
-                            Hosts.all = Hosts.all.map { $0.url == self.host.url ? self.host : $0 }
+                            Hosts.all = Hosts.all.map { host in
+                                var host = host
+                                if host.url == self.host.url { host.cloudflareAccess = true }
+                                return host
+                            }
                         }
                         self.requireAccessSignIn()
                         if discovered { self.delegate?.sessionAccessRequired() }
@@ -317,6 +326,7 @@ final class Session: NSObject, URLSessionWebSocketDelegate {
         case "ping":
             if let v = j["s"] { send("po,\(v)") }
         case "clip":
+            guard inputPreferences.mode != .viewOnly else { return }
             if let d = j["d"] as? String {
                 UIPasteboard.general.string = d
                 pasteSeen = UIPasteboard.general.changeCount
@@ -344,7 +354,7 @@ final class Session: NSObject, URLSessionWebSocketDelegate {
             // A frame is acked once every stripe part arrived, decoded or not (same as the web worker).
             let left = (pending[frame] ?? parts) - 1
             if left <= 0 { pending[frame] = nil; send("a,\(frame)") } else { pending[frame] = left }
-        } else if kind == 0x04, d.count > 1, let img = UIImage(data: d.dropFirst()) {
+        } else if kind == 0x04, inputPreferences.mode != .viewOnly, d.count > 1, let img = UIImage(data: d.dropFirst()) {
             // Image copied on the host.
             UIPasteboard.general.image = img
             pasteSeen = UIPasteboard.general.changeCount
