@@ -1,6 +1,6 @@
 # voxl-pocket-ios
 
-A native iPad client for [voxl](https://github.com/tembo/voxl), the low-latency remote
+A native iPhone and iPad client for [voxl](https://github.com/tembo/voxl), the low-latency remote
 desktop server.
 
 ## Features
@@ -66,8 +66,8 @@ open VoxlPocket.xcodeproj
 ```
 
 This fork uses `com.wongjustin99.VoxlPocket` and leaves `DEVELOPMENT_TEAM` empty.
-To try it on an iPad, open the generated project, select your Apple development team
-under **Signing & Capabilities**, select your connected iPad, and run. Change the bundle
+To try it on an iPhone or iPad, open the generated project, select your Apple development team
+under **Signing & Capabilities**, select your connected device, and run. Change the bundle
 identifier if your team cannot register this one. Set the team in `project.yml` if you
 want it retained when regenerating the project.
 
