@@ -2,6 +2,7 @@ import UIKit
 
 final class OneFingerGestureRecognizer: UIGestureRecognizer {
     var onActions: (([PointerAction]) -> Void)?
+    var onBegan: ((TimeInterval) -> Void)?
     weak var coordinateView: UIView?
     var mode: InputMode {
         get { input.mode }
@@ -26,7 +27,9 @@ final class OneFingerGestureRecognizer: UIGestureRecognizer {
             return
         }
         touch = first
-        _ = input.began(at: first.location(in: coordinateView ?? view), time: ProcessInfo.processInfo.systemUptime)
+        let time = ProcessInfo.processInfo.systemUptime
+        onBegan?(time)
+        _ = input.began(at: first.location(in: coordinateView ?? view), time: time)
         let timer = Timer(timeInterval: OneFingerInput.holdDelay, repeats: false) { [weak self] _ in
             guard let self else { return }
             self.deliver(self.input.held(time: ProcessInfo.processInfo.systemUptime))

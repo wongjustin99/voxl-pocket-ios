@@ -40,7 +40,9 @@ These settings are saved separately for each computer.
 | Show or hide the keyboard | Tap with three fingers |
 | Scroll / zoom | Move two fingers / pinch |
 
-Trackpad gestures act at the pointer. Touch mode acts at your finger. Lift to drop a
+Trackpad gestures act at the pointer. Slow movements keep fine control; fast swipes
+move the pointer up to three times farther, including while dragging. The precision
+circle keeps its fixed, slow movement speed. Touch mode acts at your finger. Lift to drop a
 dragged item. Holds take about 0.4 seconds. The optional precision circle moves the
 pointer more slowly and supports the same one-finger click and drag gestures.
 

@@ -40,8 +40,7 @@ final class RemoteViewController: UIViewController, SessionDelegate, UIGestureRe
     private var heldKeys: [Int: Int] = [:] // HID usage -> keysym sent on press
     private var pointerButtons: [ObjectIdentifier: Int] = [:]
 
-    // ponytail: fixed trackpad gain; add acceleration curve if long moves feel slow.
-    private let trackpadGain: CGFloat = 1.5
+    private var trackpadMotion = TrackpadMotion()
 
     override var prefersStatusBarHidden: Bool { true }
     override var prefersHomeIndicatorAutoHidden: Bool { true }
@@ -472,9 +471,7 @@ final class RemoteViewController: UIViewController, SessionDelegate, UIGestureRe
         for action in actions {
             switch action {
             case .point(let point): move(to: toDesk(point))
-            case .relative(let delta):
-                let scale: CGFloat = precision ? 0.35 : 1
-                relative(CGPoint(x: delta.x * scale, y: delta.y * scale))
+            case .relative(let delta): relative(delta, precision: precision)
             case .button(let number, let down): button(number, down)
             case .click(let number): click(number)
             case .feedback(let point): showHoldFeedback(at: point)
@@ -515,6 +512,7 @@ final class RemoteViewController: UIViewController, SessionDelegate, UIGestureRe
         tap2.numberOfTouchesRequired = 2
         let tap3 = UITapGestureRecognizer(target: self, action: #selector(toggleKeyboard))
         tap3.numberOfTouchesRequired = 3
+        oneFinger.onBegan = { [weak self] time in self?.trackpadMotion.reset(at: time) }
         oneFinger.onActions = { [weak self] actions in
             guard let self else { return }
             self.handlePointer(actions)
@@ -570,15 +568,17 @@ final class RemoteViewController: UIViewController, SessionDelegate, UIGestureRe
         click(3)
     }
 
-    private func relative(_ d: CGPoint) {
-        let k = trackpadGain * deskPerPt
-        move(to: CGPoint(x: cursor.x + d.x * k, y: cursor.y + d.y * k))
+    private func relative(_ d: CGPoint, precision: Bool = false) {
+        let delta = trackpadMotion.move(d, at: ProcessInfo.processInfo.systemUptime, precision: precision)
+        let k = deskPerPt
+        move(to: CGPoint(x: cursor.x + delta.x * k, y: cursor.y + delta.y * k))
         followCursor()
     }
 
     @objc private func panned3(_ g: UIPanGestureRecognizer) {
         switch g.state {
         case .began:
+            trackpadMotion.reset()
             button(1, true)
             relative(g.translation(in: view))
         case .changed:
