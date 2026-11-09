@@ -3,6 +3,10 @@ options:
   bundleIdPrefix: com.wongjustin99
   deploymentTarget:
     iOS: "18.0"
+packages:
+  Sodium:
+    url: https://github.com/jedisct1/swift-sodium
+    exactVersion: 0.11.0
 settings:
   base:
     DEVELOPMENT_TEAM: ""
@@ -23,6 +27,8 @@ targets:
     type: application
     platform: iOS
     sources: [Sources]
+    dependencies:
+      - package: Sodium
     settings:
       base:
         ASSETCATALOG_COMPILER_APPICON_NAME: Voxl

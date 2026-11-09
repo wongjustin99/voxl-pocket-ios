@@ -1,5 +1,7 @@
 # Visual history
 
+- `2026-11-10-01/`: Safari-based Cloudflare Access login and Apple's native passkey/security-key picker on the iPad Pro 11-inch (M5) simulator, from the native-Access commit containing this entry. Baseline: `2026-11-09-04/` on the same simulator and protected host. Passwords control, passkey picker, cancellation and reopening verified; no credentials entered. Encrypted transfer, token expiry/scoping and cancellation covered by automated tests. Authenticated return still needs a physical-device check.
+
 - `2026-11-09-07/`: saved input settings, precision mouse circle and View Only on the iPhone 13 Pro simulator, from the input-profiles commit containing this entry. Uses the loopback input fixture with no video or private desktop content. The existing `2026-11-09-06/` toolbar screenshots are the visual baseline. Wire replays cover one-/two-finger input, precision scaling, reverse scrolling and View Only suppression; three-finger tap/drag need a physical check. Device build installed on Gattleskit; phone was locked at launch.
 
 - `2026-11-09-05/`: toolbar safe-area baseline at `b0954ff`, captured on an iPhone 13 Pro simulator in portrait and landscape-left. An intentionally unreachable localhost host keeps private desktop content out of the screenshots.
