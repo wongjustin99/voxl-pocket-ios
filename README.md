@@ -14,6 +14,7 @@ desktop server.
 - Switch between the host's displays
 - Clipboard both ways, text and images
 - Split View, Slide Over and any orientation
+- Remote controls stay clear of the notch and Dynamic Island in portrait and landscape
 
 ## Use
 
