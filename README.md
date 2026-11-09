@@ -27,7 +27,8 @@ hostname to Voxl's `--allowed-hosts`. Keep your existing Cloudflare Access polic
 
 1. Add `wss://desktop.example.com/ws` as a host. Its password is the **Voxl password**,
    not your GitHub password.
-2. Swipe left on the saved host, tap **Access**, then **Sign In**.
+2. Tap the saved host. A Cloudflare Access login redirect automatically opens sign-in.
+   You can also swipe left, tap **Access**, then **Sign In** to log in manually.
 3. Complete Cloudflare's GitHub login in the in-app browser. The browser closes and
    the native desktop connects once the application cookies are available.
 
@@ -72,6 +73,10 @@ identifier if your team cannot register this one. Set the team in `project.yml` 
 want it retained when regenerating the project.
 
 Run the cookie-scoping and handshake-error tests with `swift test`.
+The Xcode scheme also includes a live integration test against `voxl.mailwong.com`:
+run **Product > Test** on a simulator. It checks the real WebSocket redirect path,
+Access discovery and password preservation without completing GitHub login.
+Simulator tests need normal ad-hoc signing enabled for Keychain access.
 
 ## License
 

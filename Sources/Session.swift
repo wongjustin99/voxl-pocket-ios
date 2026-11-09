@@ -102,13 +102,14 @@ protocol SessionDelegate: AnyObject {
     func sessionState(_ text: String?)
     /// The host refused the saved password, which is now forgotten.
     func sessionAuthFailed()
+    func sessionAccessRequired()
 }
 
 /// WebSocket connection to the voxl host. All callbacks arrive on the main queue.
 // ponytail: decoding runs on the main queue; move to a serial queue if the UI stutters at 60fps.
 final class Session: NSObject, URLSessionWebSocketDelegate {
     weak var delegate: SessionDelegate?
-    let host: Host
+    private(set) var host: Host
     private(set) var connected = false
     private(set) var accessSignInRequired = false
     private var task: URLSessionWebSocketTask?
@@ -232,7 +233,8 @@ final class Session: NSObject, URLSessionWebSocketDelegate {
                 if let r = t.response as? HTTPURLResponse,
                    let failure = HandshakeFailure.classify(status: r.statusCode,
                        challenge: r.value(forHTTPHeaderField: "WWW-Authenticate"),
-                       accessEnabled: self.host.cloudflareAccess == true) {
+                       accessEnabled: self.host.cloudflareAccess == true,
+                       location: r.value(forHTTPHeaderField: "Location")) {
                     switch failure {
                     case .password:
                         Hosts.setPassword(nil, for: self.host.url)
@@ -240,7 +242,13 @@ final class Session: NSObject, URLSessionWebSocketDelegate {
                         self.delegate?.sessionState("Wrong Voxl password")
                         self.delegate?.sessionAuthFailed()
                     case .access:
+                        let discovered = self.host.cloudflareAccess != true
+                        if discovered {
+                            self.host.cloudflareAccess = true
+                            Hosts.all = Hosts.all.map { $0.url == self.host.url ? self.host : $0 }
+                        }
                         self.requireAccessSignIn()
+                        if discovered { self.delegate?.sessionAccessRequired() }
                     case .forbidden:
                         self.stop()
                         self.delegate?.sessionState("Server refused access (403). Check Cloudflare Access and Voxl's allowed hosts.")

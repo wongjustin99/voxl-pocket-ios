@@ -3,6 +3,8 @@ import UIKit
 /// Full-screen remote desktop: video, cursor, touch/pointer/keyboard input.
 final class RemoteViewController: UIViewController, SessionDelegate, UIGestureRecognizerDelegate, UIPointerInteractionDelegate {
     private let session: Session
+    private var accessLoginPending = false
+    private var appeared = false
     private let desk = UIView()            // bounds = desktop pixels, scaled by transform
     private let cursorLayer = CALayer()
     private let status = UILabel()
@@ -137,11 +139,14 @@ final class RemoteViewController: UIViewController, SessionDelegate, UIGestureRe
 
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
+        appeared = true
         becomeFirstResponder()
+        presentAccessSignInIfNeeded()
     }
 
     override func viewWillDisappear(_ animated: Bool) {
         super.viewWillDisappear(animated)
+        appeared = false
         releaseAll()
         if isMovingFromParent || navigationController?.isBeingDismissed == true {
             navigationController?.interactivePopGestureRecognizer?.isEnabled = true
@@ -233,14 +238,25 @@ final class RemoteViewController: UIViewController, SessionDelegate, UIGestureRe
 
     @objc private func statusTapped() {
         if session.accessSignInRequired {
-            let login = AccessLoginViewController(host: session.host) { [weak self] in self?.session.start() }
-            present(UINavigationController(rootViewController: login), animated: true)
+            sessionAccessRequired()
         } else if !session.connected {
             session.start()
         }
     }
 
+    private func presentAccessSignInIfNeeded() {
+        guard accessLoginPending, appeared, presentedViewController == nil else { return }
+        accessLoginPending = false
+        let login = AccessLoginViewController(host: session.host) { [weak self] in self?.session.start() }
+        present(UINavigationController(rootViewController: login), animated: true)
+    }
+
     // MARK: SessionDelegate
+
+    func sessionAccessRequired() {
+        accessLoginPending = true
+        presentAccessSignInIfNeeded()
+    }
 
     func sessionHello(width: Int, height: Int, stripes: [Stripe], resizeScale: Double?, displays: Int, display: Int) {
         updateDisplayMenu(count: displays, current: display)

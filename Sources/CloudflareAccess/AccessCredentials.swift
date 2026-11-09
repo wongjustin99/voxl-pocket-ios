@@ -6,7 +6,11 @@ import FoundationNetworking
 enum HandshakeFailure: Equatable {
     case password, access, forbidden
 
-    static func classify(status: Int, challenge: String?, accessEnabled: Bool) -> Self? {
+    static func classify(status: Int, challenge: String?, accessEnabled: Bool, location: String? = nil) -> Self? {
+        if [301, 302, 303, 307, 308].contains(status),
+           let url = location.flatMap(URL.init(string:)), url.scheme == "https",
+           url.host?.hasSuffix(".cloudflareaccess.com") == true,
+           url.path.hasPrefix("/cdn-cgi/access/login/") { return .access }
         if status == 401 && (!accessEnabled || challenge?.lowercased().hasPrefix("basic ") == true) { return .password }
         if accessEnabled && ([301, 302, 303, 307, 308, 401, 403].contains(status)) { return .access }
         if status == 403 { return .forbidden }

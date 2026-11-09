@@ -11,6 +11,13 @@ settings:
     TARGETED_DEVICE_FAMILY: "1,2"
     MARKETING_VERSION: "0.1"
     CURRENT_PROJECT_VERSION: "1"
+schemes:
+  VoxlPocket:
+    build:
+      targets:
+        VoxlPocket: all
+    test:
+      targets: [VoxlPocketTests]
 targets:
   VoxlPocket:
     type: application
@@ -47,3 +54,14 @@ targets:
             UIWindowSceneSessionRoleApplication:
               - UISceneConfigurationName: Default
                 UISceneDelegateClassName: $(PRODUCT_MODULE_NAME).SceneDelegate
+  VoxlPocketTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources: [IntegrationTests]
+    dependencies:
+      - target: VoxlPocket
+    settings:
+      base:
+        TEST_HOST: $(BUILT_PRODUCTS_DIR)/VoxlPocket.app/VoxlPocket
+        BUNDLE_LOADER: $(TEST_HOST)
+        GENERATE_INFOPLIST_FILE: YES

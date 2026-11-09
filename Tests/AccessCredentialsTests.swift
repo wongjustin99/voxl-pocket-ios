@@ -33,6 +33,14 @@ final class AccessCredentialsTests: XCTestCase {
         XCTAssertNil(HandshakeFailure.classify(status: 101, challenge: nil, accessEnabled: true))
     }
 
+    func testCloudflareLoginRedirectIsDetectedWithoutPriorConfiguration() {
+        let location = "https://die-shoe-lease-form-pages.cloudflareaccess.com/cdn-cgi/access/login/voxl.mailwong.com"
+        XCTAssertEqual(HandshakeFailure.classify(status: 302, challenge: nil, accessEnabled: false, location: location), .access)
+        XCTAssertNil(HandshakeFailure.classify(status: 302, challenge: nil, accessEnabled: false, location: "https://example.com/login"))
+        XCTAssertNil(HandshakeFailure.classify(status: 302, challenge: nil, accessEnabled: false, location: "https://fake-cloudflareaccess.com/cdn-cgi/access/login/host"))
+        XCTAssertNil(HandshakeFailure.classify(status: 302, challenge: nil, accessEnabled: false, location: "http://team.cloudflareaccess.com/cdn-cgi/access/login/host"))
+    }
+
     func testExpiryAndCookiePaths() throws {
         let url = URL(string: "wss://desktop.example.com/remote/ws")!
         let now = Date()
