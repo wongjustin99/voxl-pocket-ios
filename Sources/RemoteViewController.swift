@@ -339,14 +339,14 @@ final class RemoteViewController: UIViewController, SessionDelegate, UIGestureRe
 
     // MARK: geometry
 
-    /// Points per desktop pixel at zoom 1. When the desktop fits and stretching it would
-    /// gain little, it is shown 1:1 (one desktop pixel per device pixel) so text stays
-    /// sharp, with a thin border, instead of being scaled a few percent and blurred.
+    /// Points per desktop pixel at zoom 1. The desktop is stretched to the screen's edge,
+    /// unless it is within 5% of the screen's pixels: then it is shown 1:1 (one desktop
+    /// pixel per device pixel) so text stays sharp, with a thin border.
     private var fit: CGFloat {
         guard W > 0, H > 0 else { return 1 }
         let stretch = min(view.bounds.width / W, view.bounds.height / H)
         let exact = 1 / nativeScale
-        return exact <= stretch && stretch / exact < 1.25 ? exact : stretch
+        return exact <= stretch && stretch / exact < 1.05 ? exact : stretch
     }
 
     /// Desktop pixels per on-screen point.
