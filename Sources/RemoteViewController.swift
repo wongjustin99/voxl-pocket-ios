@@ -240,6 +240,7 @@ final class RemoteViewController: UIViewController, SessionDelegate, UIGestureRe
     }
 
     @objc private func showInputSettings() {
+        releaseAll()
         let sheet = UIAlertController(title: "Input", message: nil, preferredStyle: .actionSheet)
         for mode in InputMode.allCases {
             let action = UIAlertAction(title: mode.title, style: .default) { [weak self] _ in
