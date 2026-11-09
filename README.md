@@ -20,12 +20,41 @@ desktop server.
 Tap **+** and enter the server's address, for example `wss://my-mac.example.com:6901/ws`,
 and its password. The password is stored in the iOS Keychain.
 
+### Cloudflare Tunnel with Access (GitHub login)
+
+Point the tunnel's public hostname at the Voxl server's local HTTP port, and add that
+hostname to Voxl's `--allowed-hosts`. Keep your existing Cloudflare Access policy.
+
+1. Add `wss://desktop.example.com/ws` as a host. Its password is the **Voxl password**,
+   not your GitHub password.
+2. Swipe left on the saved host, tap **Access**, then **Sign In**.
+3. Complete Cloudflare's GitHub login in the in-app browser. The browser closes and
+   the native desktop connects once the application cookies are available.
+
+Access cookies are saved in the Keychain, scoped to that exact hostname and port.
+The optional `CF_Binding` cookie is included too. The login browser uses temporary
+storage, separate from Safari, so you may need to enter your GitHub credentials again.
+Only HTTPS login pages are allowed; no Voxl password is sent to the login browser.
+If a passkey or external-app login cannot complete inside the browser, use GitHub's
+password and verification-code options instead.
+
+When Access expires or rejects a connection, tap the desktop's sign-in message to
+log in again. A 403 does not erase the saved Voxl password. To stop using Access for a
+host, swipe left, tap **Access**, then **Turn Off in App**; this does not change the
+server's Cloudflare policy. Deleting a host removes its saved password and Access cookies.
+
+The real GitHub/Access flow must be tested against your protected hostname; local
+unit tests do not validate your Access policy or identity-provider configuration.
+
 ## Privacy
 
 Voxl Pocket collects no data and has no analytics, ads or accounts. The servers you add
 are stored on your device, and their passwords in the iOS Keychain. The app talks only to
 the servers you add: it sends your input, and your clipboard when it changes, and receives
-the screen and the server's clipboard. Nothing goes to the developer or anyone else.
+the screen and the server's clipboard. When you enable Cloudflare Access, the sign-in
+browser also contacts Cloudflare and your chosen identity provider (such as GitHub).
+The app saves the application's Access cookies in the Keychain, not your GitHub password.
+Nothing is sent to the app's developer.
 
 ## Build
 
@@ -36,8 +65,13 @@ xcodegen
 open VoxlPocket.xcodeproj
 ```
 
-To sign with your own Apple account, change `DEVELOPMENT_TEAM` and the bundle identifier
-in `project.yml`.
+This fork uses `com.wongjustin99.VoxlPocket` and leaves `DEVELOPMENT_TEAM` empty.
+To try it on an iPad, open the generated project, select your Apple development team
+under **Signing & Capabilities**, select your connected iPad, and run. Change the bundle
+identifier if your team cannot register this one. Set the team in `project.yml` if you
+want it retained when regenerating the project.
+
+Run the cookie-scoping and handshake-error tests with `swift test`.
 
 ## License
 

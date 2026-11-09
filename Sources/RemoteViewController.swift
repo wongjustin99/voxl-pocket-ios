@@ -142,9 +142,11 @@ final class RemoteViewController: UIViewController, SessionDelegate, UIGestureRe
 
     override func viewWillDisappear(_ animated: Bool) {
         super.viewWillDisappear(animated)
-        navigationController?.interactivePopGestureRecognizer?.isEnabled = true
         releaseAll()
-        session.close()
+        if isMovingFromParent || navigationController?.isBeingDismissed == true {
+            navigationController?.interactivePopGestureRecognizer?.isEnabled = true
+            session.close()
+        }
     }
 
     @objc private func goBack() { navigationController?.popViewController(animated: true) }
@@ -229,7 +231,14 @@ final class RemoteViewController: UIViewController, SessionDelegate, UIGestureRe
         view.setNeedsLayout() // covered depends on which responder is first
     }
 
-    @objc private func statusTapped() { if !session.connected { session.start() } }
+    @objc private func statusTapped() {
+        if session.accessSignInRequired {
+            let login = AccessLoginViewController(host: session.host) { [weak self] in self?.session.start() }
+            present(UINavigationController(rootViewController: login), animated: true)
+        } else if !session.connected {
+            session.start()
+        }
+    }
 
     // MARK: SessionDelegate
 

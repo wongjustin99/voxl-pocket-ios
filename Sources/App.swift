@@ -20,6 +20,7 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
 struct Host: Codable, Equatable {
     var name: String
     var url: String
+    var cloudflareAccess: Bool?
 }
 
 /// Saved hosts. The list lives in UserDefaults, each host's password in the Keychain
@@ -65,10 +66,20 @@ enum Hosts {
         return !h.contains(".") || h.hasSuffix(".local") || h.contains(":") || h.allSatisfy { $0.isNumber || $0 == "." }
     }
 
-    static let privacyURL = URL(string: "https://github.com/ericmigi/voxl-pocket-ios#privacy")!
+    static let privacyURL = URL(string: "https://github.com/wongjustin99/voxl-pocket-ios/blob/cloudflare-access-login/README.md#privacy")!
 
     static func password(for url: String) -> String? { keychain("pw:" + url) }
     static func setPassword(_ pw: String?, for url: String) { setKeychain("pw:" + url, pw) }
+
+    static func accessCredentials(for url: String) -> AccessCredentials? {
+        guard let value = keychain("access:" + url), let data = value.data(using: .utf8) else { return nil }
+        return try? JSONDecoder().decode(AccessCredentials.self, from: data)
+    }
+
+    static func setAccessCredentials(_ credentials: AccessCredentials?, for url: String) {
+        let value = credentials.flatMap { try? JSONEncoder().encode($0) }.flatMap { String(data: $0, encoding: .utf8) }
+        setKeychain("access:" + url, value)
+    }
 
     private static func query(_ account: String) -> [String: Any] {
         [kSecClass as String: kSecClassGenericPassword,
@@ -141,17 +152,14 @@ final class HostPickerViewController: UITableViewController {
     override func tableView(_ t: UITableView, didSelectRowAt i: IndexPath) {
         t.deselectRow(at: i, animated: true)
         let host = hosts[i.row]
-        if Hosts.password(for: host.url) == nil {
-            askPassword(host) { [weak self] in self?.connect(host) }
-        } else {
-            connect(host)
-        }
+        connect(host)
     }
 
     override func tableView(_ t: UITableView, trailingSwipeActionsConfigurationForRowAt i: IndexPath) -> UISwipeActionsConfiguration? {
         let delete = UIContextualAction(style: .destructive, title: "Delete") { [weak self] _, _, done in
             guard let self else { return done(false) }
             Hosts.setPassword(nil, for: self.hosts[i.row].url)
+            Hosts.setAccessCredentials(nil, for: self.hosts[i.row].url)
             self.hosts.remove(at: i.row)
             Hosts.all = self.hosts
             t.deleteRows(at: [i], with: .automatic)
@@ -161,11 +169,52 @@ final class HostPickerViewController: UITableViewController {
             self?.edit(i.row)
             done(true)
         }
-        return UISwipeActionsConfiguration(actions: [delete, edit])
+        let access = UIContextualAction(style: .normal, title: "Access") { [weak self] _, _, done in
+            self?.configureAccess(i.row)
+            done(true)
+        }
+        return UISwipeActionsConfiguration(actions: [delete, edit, access])
+    }
+
+    private func configureAccess(_ index: Int) {
+        guard URL(string: hosts[index].url)?.scheme == "wss" else {
+            alert("Cloudflare Access requires a wss:// URL.")
+            return
+        }
+        let alert = UIAlertController(title: "Cloudflare Access", message: "Sign in with your configured identity provider, such as GitHub. The Voxl password is separate.", preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: "Sign In", style: .default) { [weak self] _ in
+            guard let self else { return }
+            self.hosts[index].cloudflareAccess = true
+            Hosts.all = self.hosts
+            let host = self.hosts[index]
+            self.signIn(host) { [weak self] in self?.connect(host) }
+        })
+        if hosts[index].cloudflareAccess == true {
+            alert.addAction(UIAlertAction(title: "Turn Off in App", style: .destructive) { [weak self] _ in
+                guard let self else { return }
+                self.hosts[index].cloudflareAccess = nil
+                Hosts.setAccessCredentials(nil, for: self.hosts[index].url)
+                Hosts.all = self.hosts
+            })
+        }
+        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        present(alert, animated: true)
+    }
+
+    private func signIn(_ host: Host, completion: @escaping () -> Void) {
+        let login = AccessLoginViewController(host: host, completion: completion)
+        present(UINavigationController(rootViewController: login), animated: true)
     }
 
     private func connect(_ host: Host) {
-        navigationController?.pushViewController(RemoteViewController(host: host), animated: true)
+        if host.cloudflareAccess == true, let url = URL(string: host.url),
+           Hosts.accessCredentials(for: host.url)?.cookieHeader(for: url) == nil {
+            signIn(host) { [weak self] in self?.connect(host) }
+        } else if Hosts.password(for: host.url) == nil {
+            askPassword(host) { [weak self] in self?.connect(host) }
+        } else {
+            navigationController?.pushViewController(RemoteViewController(host: host), animated: true)
+        }
     }
 
     private func askPassword(_ host: Host, then: @escaping () -> Void) {
@@ -205,11 +254,13 @@ final class HostPickerViewController: UITableViewController {
                 return
             }
             let name = (f[0].text ?? "").trimmingCharacters(in: .whitespaces)
-            let host = Host(name: name.isEmpty ? (URL(string: url)?.host ?? url) : name, url: url)
+            let host = Host(name: name.isEmpty ? (URL(string: url)?.host ?? url) : name, url: url,
+                            cloudflareAccess: url.hasPrefix("wss://") ? old?.cloudflareAccess : nil)
             let pw = f[2].text ?? ""
             if let old, old.url != url {
                 if pw.isEmpty { Hosts.setPassword(Hosts.password(for: old.url), for: url) }
                 Hosts.setPassword(nil, for: old.url)
+                Hosts.setAccessCredentials(nil, for: old.url)
             }
             if !pw.isEmpty { Hosts.setPassword(pw, for: url) }
             if let index { self.hosts[index] = host } else { self.hosts.append(host) }

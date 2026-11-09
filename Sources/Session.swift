@@ -110,13 +110,19 @@ final class Session: NSObject, URLSessionWebSocketDelegate {
     weak var delegate: SessionDelegate?
     let host: Host
     private(set) var connected = false
+    private(set) var accessSignInRequired = false
     private var task: URLSessionWebSocketTask?
     private var stripes: [Stripe] = []
     private var pending: [UInt32: Int] = [:] // frame id -> parts still to arrive
     private var lastKeyRequest = Date.distantPast
     private var keyRetryQueued = false
     private var stopped = true
-    private lazy var urlSession = URLSession(configuration: .default, delegate: self, delegateQueue: .main)
+    private lazy var urlSession: URLSession = {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.httpShouldSetCookies = false
+        configuration.httpCookieStorage = nil
+        return URLSession(configuration: configuration, delegate: self, delegateQueue: .main)
+    }()
 
     /// Pasteboard generation already in sync with a host (set or sent by us). Kept across
     /// launches, so a copy made before connecting is sent, but an old one isn't re-sent.
@@ -180,6 +186,14 @@ final class Session: NSObject, URLSessionWebSocketDelegate {
         }
         var req = URLRequest(url: url)
         req.setValue("Bearer \(pw)", forHTTPHeaderField: "Authorization")
+        if host.cloudflareAccess == true {
+            guard let cookie = Hosts.accessCredentials(for: host.url)?.cookieHeader(for: url) else {
+                requireAccessSignIn()
+                return
+            }
+            req.setValue(cookie, forHTTPHeaderField: "Cookie")
+        }
+        accessSignInRequired = false
         let t = urlSession.webSocketTask(with: req)
         t.maximumMessageSize = 64 << 20
         task = t
@@ -215,12 +229,22 @@ final class Session: NSObject, URLSessionWebSocketDelegate {
             guard let self, t === self.task else { return }
             switch result {
             case .failure:
-                if let r = t.response as? HTTPURLResponse, r.statusCode == 401 || r.statusCode == 403 {
-                    // Forget the password so the host list asks for it again.
-                    Hosts.setPassword(nil, for: self.host.url)
-                    self.stop()
-                    self.delegate?.sessionState("Wrong password")
-                    self.delegate?.sessionAuthFailed()
+                if let r = t.response as? HTTPURLResponse,
+                   let failure = HandshakeFailure.classify(status: r.statusCode,
+                       challenge: r.value(forHTTPHeaderField: "WWW-Authenticate"),
+                       accessEnabled: self.host.cloudflareAccess == true) {
+                    switch failure {
+                    case .password:
+                        Hosts.setPassword(nil, for: self.host.url)
+                        self.stop()
+                        self.delegate?.sessionState("Wrong Voxl password")
+                        self.delegate?.sessionAuthFailed()
+                    case .access:
+                        self.requireAccessSignIn()
+                    case .forbidden:
+                        self.stop()
+                        self.delegate?.sessionState("Server refused access (403). Check Cloudflare Access and Voxl's allowed hosts.")
+                    }
                 } else {
                     self.dropped(retry: true)
                 }
@@ -229,6 +253,19 @@ final class Session: NSObject, URLSessionWebSocketDelegate {
             case .success: self.receive(t)
             }
         }
+    }
+
+    private func requireAccessSignIn() {
+        stop()
+        Hosts.setAccessCredentials(nil, for: host.url)
+        accessSignInRequired = true
+        delegate?.sessionState("Cloudflare Access sign-in required. Tap to sign in.")
+    }
+
+    func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse,
+                    newRequest request: URLRequest, completionHandler: @escaping (URLRequest?) -> Void) {
+        // Never forward the Voxl password or Access cookies to a login redirect.
+        completionHandler(nil)
     }
 
     private func dropped(retry: Bool) {
