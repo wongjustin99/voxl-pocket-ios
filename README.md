@@ -41,7 +41,7 @@ These settings are saved separately for each computer.
 | Scroll / zoom | Move two fingers / pinch |
 
 Trackpad gestures act at the pointer. Slow movements keep fine control; fast swipes
-move the pointer up to three times farther, including while dragging. The precision
+move the pointer up to twice as far, including while dragging. The precision
 circle keeps its fixed, slow movement speed. Touch mode acts at your finger. Lift to drop a
 dragged item. Holds take about 0.4 seconds. The optional precision circle moves the
 pointer more slowly and supports the same one-finger click and drag gestures.

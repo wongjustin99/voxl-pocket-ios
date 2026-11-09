@@ -13,8 +13,8 @@ struct TrackpadMotion {
         guard let elapsed, elapsed > 0 else { return delta }
         // Speed is measured in screen points before desktop scaling or zoom.
         let speed = hypot(delta.x, delta.y) / elapsed
-        let t = min(max((speed - 80) / 720, 0), 1)
-        let gain = 1 + 2 * t * t * (3 - 2 * t)
+        let t = min(max((speed - 120) / 780, 0), 1)
+        let gain = 1 + t * t * (3 - 2 * t)
         return CGPoint(x: delta.x * gain, y: delta.y * gain)
     }
 }
