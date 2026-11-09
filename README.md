@@ -6,7 +6,7 @@ desktop server.
 ## Features
 
 - H.264 video decoded in hardware (AVSampleBufferDisplayLayer), one layer per stripe
-- Trackpad and touch input, pinch to zoom, two-finger scroll
+- Trackpad and touch input, pinch to zoom, two-finger scroll, three-finger drag
 - Hardware keyboards and mice, plus the soft keyboard with a key bar for Esc, Tab,
   sticky Shift/Cmd/Ctrl/Opt, ⌘Space, ⌘Tab and arrows
 - Keeps the host at its own resolution by default; can resize it to fit the iPad
@@ -20,6 +20,10 @@ desktop server.
 
 Tap **+** and enter the server's address, for example `wss://my-mac.example.com:6901/ws`,
 and its password. The password is stored in the iOS Keychain.
+
+In trackpad mode, move the pointer onto an item, then drag with three fingers.
+Lift your fingers to drop it. This does not need the one-finger hold delay;
+one-finger press-and-hold dragging still works.
 
 ### Cloudflare Tunnel with Access (GitHub login)
 

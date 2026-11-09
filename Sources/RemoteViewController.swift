@@ -43,6 +43,7 @@ final class RemoteViewController: UIViewController, SessionDelegate, UIGestureRe
     override var prefersHomeIndicatorAutoHidden: Bool { true }
     override var preferredScreenEdgesDeferringSystemGestures: UIRectEdge { .all }
     override var canBecomeFirstResponder: Bool { true }
+    override var editingInteractionConfiguration: UIEditingInteractionConfiguration { .none }
 
     init(host: Host) {
         session = Session(host: host)
@@ -404,8 +405,11 @@ final class RemoteViewController: UIViewController, SessionDelegate, UIGestureRe
         let pan2 = UIPanGestureRecognizer(target: self, action: #selector(panned2))
         pan2.minimumNumberOfTouches = 2
         pan2.maximumNumberOfTouches = 2
+        let pan3 = UIPanGestureRecognizer(target: self, action: #selector(panned3))
+        pan3.minimumNumberOfTouches = 3
+        pan3.maximumNumberOfTouches = 3
         let pinch = UIPinchGestureRecognizer(target: self, action: #selector(pinched))
-        for g in [tap1, tap2, long, pan1, pan2, pinch] as [UIGestureRecognizer] {
+        for g in [tap1, tap2, long, pan1, pan2, pan3, pinch] as [UIGestureRecognizer] {
             g.allowedTouchTypes = direct
             g.delegate = self
             view.addGestureRecognizer(g)
@@ -418,6 +422,13 @@ final class RemoteViewController: UIViewController, SessionDelegate, UIGestureRe
         view.addGestureRecognizer(wheel)
 
         view.addGestureRecognizer(UIHoverGestureRecognizer(target: self, action: #selector(hovered)))
+    }
+
+    func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+        if let pan = gestureRecognizer as? UIPanGestureRecognizer, pan.minimumNumberOfTouches == 3 {
+            return trackpad
+        }
+        return true
     }
 
     func gestureRecognizer(_ a: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith b: UIGestureRecognizer) -> Bool {
@@ -476,6 +487,20 @@ final class RemoteViewController: UIViewController, SessionDelegate, UIGestureRe
         case .ended, .cancelled, .failed: button(1, false)
         default: break
         }
+    }
+
+    @objc private func panned3(_ g: UIPanGestureRecognizer) {
+        switch g.state {
+        case .began:
+            button(1, true)
+            relative(g.translation(in: view))
+        case .changed:
+            relative(g.translation(in: view))
+        case .ended, .cancelled, .failed:
+            button(1, false)
+        default: break
+        }
+        g.setTranslation(.zero, in: view)
     }
 
     @objc private func panned2(_ g: UIPanGestureRecognizer) {
@@ -672,6 +697,7 @@ final class RemoteViewController: UIViewController, SessionDelegate, UIGestureRe
 
 /// Hidden first responder that brings up the soft keyboard and its key toolbar.
 final class KeyInput: UIView, UIKeyInput {
+    override var editingInteractionConfiguration: UIEditingInteractionConfiguration { .none }
     weak var owner: RemoteViewController?
     var autocorrectionType: UITextAutocorrectionType = .no
     var autocapitalizationType: UITextAutocapitalizationType = .none
